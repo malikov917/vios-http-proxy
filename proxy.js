@@ -111,7 +111,8 @@ app.use('/', proxy(() => target, {
                         uri: match[1],
                         timestamp: +new Date(),
                         qid: userReq.headers['x-vios-qid'],
-                        sid: userReq.headers['x-vios-sid']
+                        sid: userReq.headers['x-vios-sid'],
+                        dataspaceLabel: userReq.headers['x-vios-dataspace-label']
                     };
                     insertRecord(item);
                 }
@@ -132,7 +133,8 @@ app.use('/', proxy(() => target, {
                         count: xpath.select("//*", resData).filter(x => x.nodeName === 'fct:row').length,
                         timestamp: +new Date(),
                         qid: userReq.headers['x-vios-qid'],
-                        sid: userReq.headers['x-vios-sid']
+                        sid: userReq.headers['x-vios-sid'],
+                        dataspaceLabel: userReq.headers['x-vios-dataspace-label']
                     };
                     insertRecord(item);
                 }
@@ -141,6 +143,7 @@ app.use('/', proxy(() => target, {
                 delete userReq.headers['x-vios-type'];
                 delete userReq.headers['x-vios-qid'];
                 delete userReq.headers['x-vios-sid'];
+                delete userReq.headers['x-vios-dataspace-label'];
             }
             resolve(proxyResData);
         });

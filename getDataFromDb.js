@@ -14,13 +14,7 @@ function shutDownApp() {
 }
 
 function updateCollection() {
-    db.collection(dbConfig.viosCollection).find({}, { limit: 1 }).toArray((err, data) => {
-        [{"value": "",
-        "text": "pizza",
-        "dataspace_uri": "http://dbpedia.org",
-        "count": 15,
-        "timestamp": 1553164484852,
-        "qid": "-1550053275"}].filter(i => i.dataspace_uri === '')
+    db.collection(dbConfig.viosCollection).find({}, { limit: 1000 }).toArray((err, data) => {
         writeRdfFile(data);
     });
 }
