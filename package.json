@@ -1,0 +1,22 @@
+{
+  "name": "catalog_nightmare",
+  "version": "1.0.0",
+  "description": "catalog nightmare",
+  "main": "index.js",
+  "dependencies": {
+    "dotenv": "4.0.0",
+    "express-http-proxy": "^1.5.1",
+    "http-proxy": "^1.17.0",
+    "log4js": "2.4.1",
+    "mongodb": "^2.2.33",
+    "xmldom": "^0.1.27",
+    "xpath": "0.0.27"
+  },
+  "devDependencies": {
+    "body-parser": "^1.18.2",
+    "cors": "2.8.4",
+    "express": "4.16.2"
+  },
+  "author": "",
+  "license": "ISC"
+}
