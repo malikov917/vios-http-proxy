@@ -1,6 +1,6 @@
 module.exports = writeRdfFile;
 const fs = require('fs');
-const uuidv1 = require('uuid/v1');
+const uuidv4 = require('uuid/v4');
 const path = 'rdf.rdf';
 const getItemsFromObject = (obj, property) => obj && obj[property] ? obj[property] : '';
 const putRecords = (records) => records.map(item => putRecordItem(item)).join('');
@@ -28,7 +28,7 @@ function uniqueValuesByProperty(records, property) {
 
 function putRecordItem(item) {
     return `
-        <vds:Index rdf:about="http://www.vios.network/i#${item.qid}"> <!-- {insert-GUID-hash} = hash of a generic GUID -->
+        <vds:Index rdf:about="http://www.vios.network/i#${uuidv4()}"> <!-- {insert-GUID-hash} = hash of a generic GUID -->
             <!-- optional properties, but each Index record must have at least one of these -->
             ${item.class && item.class.length           ? item.class.map(x =>      `<vdsidx:class rdf:resource="${x}"/>`).join('') : ''}
             ${item.property && item.property.length     ? item.property.map(x =>   `<vdsidx:field rdf:resource="${x}"/>`).join('') : ''}
@@ -94,7 +94,7 @@ function putProfiles(records, property) {
 
 function putProfile(uri, performance) {
     return `
-        <vo:Profile rdf:about="http://www.vios.network/i#${uuidv1()}"> 
+        <vo:Profile rdf:about="http://www.vios.network/i#${uuidv4()}"> 
             <dcterms:subject rdf:resource="${uri}"/>
             <vdspfl:performance>${performance}</vo:performance>
         </vo:Profile>`;
@@ -102,11 +102,11 @@ function putProfile(uri, performance) {
 
 function putProfileLongHandler(records) {
     records = records.filter(x => x.count);
-    records.map(item => {
+    return records.map(item => {
         const x = infoForDescriptionUri(item);
-        const tt = x.uris
+        return x.uris
             .map(y => {
-                let allMatchedRecords = records.map(z => {
+                const allMatchedRecords = records.map(z => {
                     if (!!(z.class && (z.class.indexOf(y) > -1)) ||
                         !!(z.property && (z.property.indexOf(y) > -1)) ||
                         !!(z.propertyOf && (z.propertyOf.indexOf(y) > -1)) ||
@@ -116,29 +116,23 @@ function putProfileLongHandler(records) {
                 }).filter(z => z);
                 const uniqueDataspacesCount = uniqueValuesByProperty(allMatchedRecords, 'dataspace_uri').length;
                 const uniqueGraphCount = uniqueValuesByProperty(allMatchedRecords, 'graph').length;
-                const uniqueSourceIdCount = uniqueValuesByProperty(allMatchedRecords, 'dataspace_uri').length;
-            });
+                const uniqueSourceIdCount = uniqueValuesByProperty(allMatchedRecords, 'sid').length;
+                return putProfileLongTemplate(y, item.dataspace_uri, uniqueDataspacesCount, uniqueGraphCount, uniqueSourceIdCount);
+            }).join('');
     }).join('');
 }
 
-function putProfileLongTemplate(uri, dataspace_uri) {
+function putProfileLongTemplate(uri, dataspace_uri, uniqueDataspacesCount, uniqueGraphCount, uniqueSourceIdCount) {
     return `
         <!-- metrics: run the queries over the last hour of data only -->
-        <vo:Profile rdf:about="http://www.vios.network/i#${uuidv1()}"> 
+        <vo:Profile rdf:about="http://www.vios.network/i#${uuidv4()}">
             <dcterms:subject rdf:resource="${uri}"/> <!-- one for each extracted uri -->
             <powder:describedby rdf:resource="${dataspace_uri}"/> <!-- insert data server uri -->
-            <vdspfl:idn rdf:resource="http://www.vios.network/i#${uuidv1()}"/> <!-- dummy value - insert hash of a generic GUID -->
-            <!-- {insert-metric-prevalance} = prevalance, where (pseudo code)
-                    var a = select count(DISTINCT DATASPACE) where ( VALUE=URI OR GRAPH=URI OR CLASS=URI OR PROPERTY=URI OR PROPERTY-OF=URI ) AND COUNT > 0
-                    var b = 1; // all URIs live in root graph by default, so all receive at least 1 graph point
-                    try b = select count(DISTINCT GRAPH) where ( VALUE=URI OR GRAPH=URI OR CLASS=URI OR PROPERTY=URI OR PROPERTY-OF=URI ) AND COUNT > 0
-                    var prevalance = a * (b*0.02); // disparatenss of occurances across named graphs should boost the prevalance rating
-            -->
-            <vdspfl:prevelance>{insert-metric-prevalance}</vo:prevelance> 
-            <!-- {insert-metric-performance} = performance, where (pseudo code)
-                var performance = select count(DISTINCT SOURCEID) where ( VALUE=URI OR GRAPH=URI OR CLASS=URI OR PROPERTY=URI OR PROPERTY-OF=URI ) AND COUNT > 0
-            -->
-            <vdspfl:performance>{insert-metric-performance}</vo:performance>
+            <vdspfl:idn rdf:resource="http://www.vios.network/i#${uuidv4()}"/> <!-- dummy value - insert hash of a generic GUID -->
+
+            <vdspfl:prevelance>${uniqueDataspacesCount * (uniqueGraphCount * 0.2)}</vo:prevelance> 
+
+            <vdspfl:performance>${uniqueSourceIdCount}</vo:performance>
             <vdsidx:timestamp>${(new Date()).getTime()}</vdsidx:timestamp> <!-- when was this profile generated -->
         </vo:Profile>`;
 }

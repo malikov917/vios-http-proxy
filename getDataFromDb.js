@@ -17,6 +17,12 @@ function updateCollection() {
     db.collection(dbConfig.viosCollection).find({}, { limit: 1000 }).toArray((err, data) => {
         writeRdfFile(data);
     });
+
+    // const lastHour = new Date();
+    // lastHour.setHours(lastHour.getHours() - 1);
+    // db.collection(dbConfig.viosCollection).find( { timestamp: { $gt: new Date(lastHour).getTime() } } ).toArray((err, data) => {
+    //     console.log(data);
+    // });
 }
 
 MongoClient.connect(dbConfig.url, function(err, client) {
