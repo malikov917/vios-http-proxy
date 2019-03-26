@@ -3,6 +3,7 @@ const dbConfig = require('./config/db');
 let db;
 process.send = process.send || function () {};
 const writeRdfFile = require('./renderRdf');
+const transferFile = require('./executeBash');
 
 function shutDownApp() {
     console.log('Closing cron job...');
@@ -16,6 +17,7 @@ function shutDownApp() {
 function updateCollection() {
     db.collection(dbConfig.viosCollection).find({}, { limit: 1000 }).toArray((err, data) => {
         writeRdfFile(data);
+        transferFile();
     });
 
     // const lastHour = new Date();

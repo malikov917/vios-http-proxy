@@ -12,6 +12,12 @@ const infoForDescriptionUri = (item) => {
             ...getItemsFromObject(item, 'propertyOf'),
             ...getItemsFromObject(item, 'graph')
         ],
+        uriLabels: [
+            ...getItemsFromObject(item, 'classLabel'),
+            ...getItemsFromObject(item, 'propertyLabel'),
+            ...getItemsFromObject(item, 'propertyOfLabel'),
+            ...getItemsFromObject(item, 'graphLabel')
+        ],
         dataspace_uri: item.dataspace_uri
     }
 };
@@ -34,29 +40,31 @@ function putRecordItem(item) {
             ${item.property && item.property.length     ? item.property.map(x =>   `<vdsidx:field rdf:resource="${x}"/>`).join('') : ''}
             ${item.propertyOf && item.propertyOf.length ? item.propertyOf.map(x => `<vdsidx:role rdf:resource="${x}"/>`).join('') : ''}
             ${item.graph && item.graph.length           ? item.graph.map(x =>      `<vdsidx:library rdf:resource="${x}"/>`).join('') : ''}
-            <vdsidx:content xmls:datatype="${item.value}"/> <!--//query//value/text() or //query//text/text() -->
+            ${item.value                                ? `<vdsidx:content rdf:datatype="${item.value}"/>` : ''}
             <vdsidx:dataserver rdf:resource="${item.dataspace_uri}"/>
             <!-- not optional - each Index record must have all of these -->
             <vdsidx:timestamp>${item.timestamp}</vdsidx:timestamp>
             <vdsidx:queryId rdf:resource="http://www.vios.network/i#qid${item.qid}"/> <!-- {insert-qid} = value extracted from X-VIOS-QID header -->
             <vdsidx:sourceId rdf:resource="http://www.vios.network/i#sid${item.sid}"/> <!-- {insert-ip_hash} = the hash of the IP Address -->
-            <vdsidx:count rdf:resource="http://www.vios.network/i#sid${item.count}"/> <!-- {insert-count} = the count value -->
+            ${item.count > -1 ? `<vdsidx:count>${item.count}</vdsidx:count>` : ''} <!-- {insert-count} = the count value -->
         </vds:Index>`;
 }
 
 function putDescriptionUris(records) {
+    records = records.filter(x => x.count);
     return records.map(item => {
         const x = infoForDescriptionUri(item);
         return x.uris
-            .map(y => putDescriptionUri(y, x.dataspace_uri)).join('');
+            .map((uri, index) => putDescriptionUri(uri, x.uriLabels[index], x.dataspace_uri)).join('');
     }).join('');
 }
 
-function putDescriptionUri(uri, dataspace_uri) {
+function putDescriptionUri(uri, uriLabel, dataspace_uri) {
     return `
         <!-- not optional - one of these for each URI value -->
         <rdf:Description rdf:about="${uri}"> <!-- one for each extracted uri -->
             <powder:describedby rdf:resource="${dataspace_uri}"/> <!-- insert data server uri -->
+            <rdfs:label>${uriLabel}</rdfs:label> <!-- insert data server label -->
         </rdf:Description>`;
 }
 
@@ -96,28 +104,38 @@ function putProfile(uri, performance) {
     return `
         <vo:Profile rdf:about="http://www.vios.network/i#${uuidv4()}"> 
             <dcterms:subject rdf:resource="${uri}"/>
-            <vdspfl:performance>${performance}</vo:performance>
+            <vdspfl:performance>${performance}</vdspfl:performance>
         </vo:Profile>`;
 }
 
 function putProfileLongHandler(records) {
     records = records.filter(x => x.count);
+    const filter = {};
     return records.map(item => {
         const x = infoForDescriptionUri(item);
         return x.uris
-            .map(y => {
-                const allMatchedRecords = records.map(z => {
-                    if (!!(z.class && (z.class.indexOf(y) > -1)) ||
-                        !!(z.property && (z.property.indexOf(y) > -1)) ||
-                        !!(z.propertyOf && (z.propertyOf.indexOf(y) > -1)) ||
-                        !!(z.graph && (z.graph.indexOf(y) > -1))) {
-                        return z;
+            .map(uri => {
+                if (!filter[uri]) {
+                    filter[uri] = true;
+                    return uri;
+                } else {
+                    return false;
+                }
+            })
+            .map(uri => {
+                if (!uri) return;
+                const allMatchedRecords = records.map(record => {
+                    if (!!(record.class && (record.class.indexOf(uri) > -1)) ||
+                        !!(record.property && (record.property.indexOf(uri) > -1)) ||
+                        !!(record.propertyOf && (record.propertyOf.indexOf(uri) > -1)) ||
+                        !!(record.graph && (record.graph.indexOf(uri) > -1))) {
+                        return record;
                     }
-                }).filter(z => z);
+                }).filter(record => record);
                 const uniqueDataspacesCount = uniqueValuesByProperty(allMatchedRecords, 'dataspace_uri').length;
                 const uniqueGraphCount = uniqueValuesByProperty(allMatchedRecords, 'graph').length;
                 const uniqueSourceIdCount = uniqueValuesByProperty(allMatchedRecords, 'sid').length;
-                return putProfileLongTemplate(y, item.dataspace_uri, uniqueDataspacesCount, uniqueGraphCount, uniqueSourceIdCount);
+                return putProfileLongTemplate(uri, item.dataspace_uri, uniqueDataspacesCount, uniqueGraphCount, uniqueSourceIdCount);
             }).join('');
     }).join('');
 }
@@ -126,13 +144,14 @@ function putProfileLongTemplate(uri, dataspace_uri, uniqueDataspacesCount, uniqu
     return `
         <!-- metrics: run the queries over the last hour of data only -->
         <vo:Profile rdf:about="http://www.vios.network/i#${uuidv4()}">
+            <!--<rdfs:label>{uriLabel} Profile</rdfs:label> &lt;!&ndash; insert data server label &ndash;&gt;-->
             <dcterms:subject rdf:resource="${uri}"/> <!-- one for each extracted uri -->
             <powder:describedby rdf:resource="${dataspace_uri}"/> <!-- insert data server uri -->
             <vdspfl:idn rdf:resource="http://www.vios.network/i#${uuidv4()}"/> <!-- dummy value - insert hash of a generic GUID -->
 
-            <vdspfl:prevelance>${uniqueDataspacesCount * (uniqueGraphCount * 0.2)}</vo:prevelance> 
+            <vdspfl:prevelance>${uniqueDataspacesCount * (uniqueGraphCount * 0.2)}</vdspfl:prevelance> 
 
-            <vdspfl:performance>${uniqueSourceIdCount}</vo:performance>
+            <vdspfl:performance>${uniqueSourceIdCount}</vdspfl:performance>
             <vdsidx:timestamp>${(new Date()).getTime()}</vdsidx:timestamp> <!-- when was this profile generated -->
         </vo:Profile>`;
 }
@@ -172,6 +191,6 @@ function renderRdf(records) {
 function writeRdfFile(data) {
     fs.writeFileSync(path, renderRdf(data), (err) => {
         if (err) throw err;
-        consol.info('Write .rdf file is succeed!');
     });
-} 
+}
+

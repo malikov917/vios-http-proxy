@@ -97,13 +97,15 @@ app.use('/', proxy(() => target, {
                 const myRegexp = /<(.*?)>/s;
                 const match = myRegexp.exec(query);
                 if (match && match[1]) {
+                    // НУЖНО ИГНОРИТЬ ВСЕ ОСТАЛЬНЫЕ !!
                     if (query && query.includes('select distinct')) {
                         item.type = 'distinct';
+                        item.count = 1;
                     } else if (query && query.includes('select count')) {
                         const doc = getXmlFromBuffer(proxyResData);
                         const el = xpath.select("//*", doc).find(x => x.nodeName === 'literal');
                         item.type = 'count';
-                        item.count = el ? el.childNodes[0].nodeValue : '';
+                        item.count = el ? el.childNodes[0].nodeValue : 0;
                     }
                     item = {
                         ...item,
@@ -112,6 +114,7 @@ app.use('/', proxy(() => target, {
                         timestamp: +new Date(),
                         qid: userReq.headers['x-vios-qid'],
                         sid: userReq.headers['x-vios-sid'],
+                        bid: userReq.headers['x-vios-bid'],
                         dataspaceLabel: userReq.headers['x-vios-dataspace-label']
                     };
                     insertRecord(item);
@@ -120,20 +123,26 @@ app.use('/', proxy(() => target, {
                 const resData = getXmlFromBuffer(proxyResData);
                 const reqBody = getXmlFromBuffer(userReq.reqBody);
                 const check = xpath.select("//query//view/@type", reqBody);
+                const count = xpath.select("//*", resData).filter(x => x.nodeName === 'fct:row').length;
 
                 if (check.length && check[0].nodeValue && check[0].nodeValue === 'list-count') {
                     item = {
                         class: xpath.select("//query//class/@iri", reqBody).length ? getNodeValues(xpath.select("//query//class/@iri", reqBody)) : '',
+                        classLabel: xpath.select("//query//class/@label", reqBody).length ? getNodeValues(xpath.select("//query//class/@label", reqBody)) : '',
                         property: xpath.select("//query//property/@iri", reqBody).length ? getNodeValues(xpath.select("//query//property/@iri", reqBody)) : '',
+                        propertyLabel: xpath.select("//query//property/@label", reqBody).length ? getNodeValues(xpath.select("//query//property/@label", reqBody)) : '',
                         propertyOf: xpath.select("//query//property-of/@iri", reqBody).length ? getNodeValues(xpath.select("//query//property-of/@iri", reqBody)) : '',
+                        propertyOfLabel: xpath.select("//query//property-of/@label", reqBody).length ? getNodeValues(xpath.select("//query//property-of/@label", reqBody)) : '',
                         graph: xpath.select("//query/@graph", reqBody).length ? getNodeValues(xpath.select("//query/@graph", reqBody)) : '',
+                        graphLabel: xpath.select("//query/@graphLabel", reqBody).length ? getNodeValues(xpath.select("//query/@graphLabel", reqBody)) : '',
                         value: xpath.select("//query//value/text()", reqBody).length ? getNodeValues(xpath.select("//query//value/text()", reqBody)) : '',
                         text: xpath.select("//query//text/text()", reqBody).length ? xpath.select("//query//text/text()", reqBody)[0].nodeValue : '',
                         dataspace_uri: target,
-                        count: xpath.select("//*", resData).filter(x => x.nodeName === 'fct:row').length,
+                        count: count !== undefined ? count : 0,
                         timestamp: +new Date(),
                         qid: userReq.headers['x-vios-qid'],
                         sid: userReq.headers['x-vios-sid'],
+                        bid: userReq.headers['x-vios-bid'],
                         dataspaceLabel: userReq.headers['x-vios-dataspace-label']
                     };
                     insertRecord(item);
