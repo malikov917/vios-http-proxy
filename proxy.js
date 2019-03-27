@@ -96,12 +96,11 @@ app.use('/', proxy(() => target, {
                 const query = userReq.query.query;
                 const myRegexp = /<(.*?)>/s;
                 const match = myRegexp.exec(query);
-                if (match && match[1]) {
-                    // НУЖНО ИГНОРИТЬ ВСЕ ОСТАЛЬНЫЕ !!
-                    if (query && query.includes('select distinct')) {
+                if (match && match[1] && query && (query.includes('select distinct') || query.includes('select count'))) {
+                    if (query.includes('select distinct')) {
                         item.type = 'distinct';
                         item.count = 1;
-                    } else if (query && query.includes('select count')) {
+                    } else if (query.includes('select count')) {
                         const doc = getXmlFromBuffer(proxyResData);
                         const el = xpath.select("//*", doc).find(x => x.nodeName === 'literal');
                         item.type = 'count';

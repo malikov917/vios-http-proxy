@@ -34,19 +34,17 @@ function uniqueValuesByProperty(records, property) {
 
 function putRecordItem(item) {
     return `
-        <vds:Index rdf:about="http://www.vios.network/i#${uuidv4()}"> <!-- {insert-GUID-hash} = hash of a generic GUID -->
-            <!-- optional properties, but each Index record must have at least one of these -->
+        <vds:Index rdf:about="http://www.vios.network/i#${uuidv4()}">
             ${item.class && item.class.length           ? item.class.map(x =>      `<vdsidx:class rdf:resource="${x}"/>`).join('') : ''}
             ${item.property && item.property.length     ? item.property.map(x =>   `<vdsidx:field rdf:resource="${x}"/>`).join('') : ''}
             ${item.propertyOf && item.propertyOf.length ? item.propertyOf.map(x => `<vdsidx:role rdf:resource="${x}"/>`).join('') : ''}
             ${item.graph && item.graph.length           ? item.graph.map(x =>      `<vdsidx:library rdf:resource="${x}"/>`).join('') : ''}
-            ${item.value                                ? `<vdsidx:content rdf:datatype="${item.value}"/>` : ''}
+            ${item.value && item.value.length           ? item.value.map(x =>      `<vdsidx:content rdf:datatype="${item.value}"/>`).join('') : ''}
             <vdsidx:dataserver rdf:resource="${item.dataspace_uri}"/>
-            <!-- not optional - each Index record must have all of these -->
             <vdsidx:timestamp>${item.timestamp}</vdsidx:timestamp>
-            <vdsidx:queryId rdf:resource="http://www.vios.network/i#qid${item.qid}"/> <!-- {insert-qid} = value extracted from X-VIOS-QID header -->
-            <vdsidx:sourceId rdf:resource="http://www.vios.network/i#sid${item.sid}"/> <!-- {insert-ip_hash} = the hash of the IP Address -->
-            ${item.count > -1 ? `<vdsidx:count>${item.count}</vdsidx:count>` : ''} <!-- {insert-count} = the count value -->
+            <vdsidx:queryId rdf:resource="http://www.vios.network/i#qid${item.qid}"/>
+            <vdsidx:sourceId rdf:resource="http://www.vios.network/i#sid${item.sid}"/>
+            ${item.count > -1 ? `<vdsidx:count>${item.count}</vdsidx:count>` : ''}
         </vds:Index>`;
 }
 
@@ -61,10 +59,9 @@ function putDescriptionUris(records) {
 
 function putDescriptionUri(uri, uriLabel, dataspace_uri) {
     return `
-        <!-- not optional - one of these for each URI value -->
-        <rdf:Description rdf:about="${uri}"> <!-- one for each extracted uri -->
-            <powder:describedby rdf:resource="${dataspace_uri}"/> <!-- insert data server uri -->
-            <rdfs:label>${uriLabel}</rdfs:label> <!-- insert data server label -->
+        <rdf:Description rdf:about="${uri}">
+            <powder:describedby rdf:resource="${dataspace_uri}"/>
+            ${!!uriLabel ? `<rdfs:label>${uriLabel}</rdfs:label>` : ''}
         </rdf:Description>`;
 }
 
@@ -82,9 +79,23 @@ function putDescriptionLabels(records, key, value) {
 
 function putDescriptionLabel(uri, label) {
     return `
-        <rdf:Description rdf:about="${uri}"> <!-- one for each extracted data server -->
-            <rdfs:label>${label}</rdfs:label> <!-- insert data server label -->
+        <rdf:Description rdf:about="${uri}">
+            <rdfs:label>${label}</rdfs:label>
         </rdf:Description>`;
+}
+
+function putDescriptionQidSidTemplate(records) {
+    return records.map(record => putDescriptionQidSidItem(record)).join('');
+}
+
+function putDescriptionQidSidItem(record) {
+    return `
+        <rdf:Description rdf:about="http://www.vios.network/i#qid${record.qid}">
+            <rdfs:label>Query ${record.qid}</rdfs:label>
+        </rdf:Description>
+        <rdf:Description rdf:about="http://www.vios.network/i#sid${record.sid}">
+            <rdfs:label>Source ${record.sid}</rdfs:label>
+        </rdf:Description>`
 }
 
 function putProfiles(records, property) {
@@ -122,7 +133,7 @@ function putProfileLongHandler(records) {
                     return false;
                 }
             })
-            .map(uri => {
+            .map((uri, index) => {
                 if (!uri) return;
                 const allMatchedRecords = records.map(record => {
                     if (!!(record.class && (record.class.indexOf(uri) > -1)) ||
@@ -135,24 +146,21 @@ function putProfileLongHandler(records) {
                 const uniqueDataspacesCount = uniqueValuesByProperty(allMatchedRecords, 'dataspace_uri').length;
                 const uniqueGraphCount = uniqueValuesByProperty(allMatchedRecords, 'graph').length;
                 const uniqueSourceIdCount = uniqueValuesByProperty(allMatchedRecords, 'sid').length;
-                return putProfileLongTemplate(uri, item.dataspace_uri, uniqueDataspacesCount, uniqueGraphCount, uniqueSourceIdCount);
+                return putProfileLongTemplate(uri, item.dataspace_uri, x.uriLabels[index], uniqueDataspacesCount, uniqueGraphCount, uniqueSourceIdCount);
             }).join('');
     }).join('');
 }
 
-function putProfileLongTemplate(uri, dataspace_uri, uniqueDataspacesCount, uniqueGraphCount, uniqueSourceIdCount) {
+function putProfileLongTemplate(uri, dataspace_uri, itemLabel, uniqueDataspacesCount, uniqueGraphCount, uniqueSourceIdCount) {
     return `
-        <!-- metrics: run the queries over the last hour of data only -->
         <vo:Profile rdf:about="http://www.vios.network/i#${uuidv4()}">
-            <!--<rdfs:label>{uriLabel} Profile</rdfs:label> &lt;!&ndash; insert data server label &ndash;&gt;-->
-            <dcterms:subject rdf:resource="${uri}"/> <!-- one for each extracted uri -->
-            <powder:describedby rdf:resource="${dataspace_uri}"/> <!-- insert data server uri -->
-            <vdspfl:idn rdf:resource="http://www.vios.network/i#${uuidv4()}"/> <!-- dummy value - insert hash of a generic GUID -->
-
+            ${!!itemLabel ? `<rdfs:label>${itemLabel} Profile</rdfs:label>` : ''}
+            <dcterms:subject rdf:resource="${uri}"/>
+            <powder:describedby rdf:resource="${dataspace_uri}"/>
+            <vdspfl:idn rdf:resource="http://www.vios.network/i#${uuidv4()}"/>
             <vdspfl:prevelance>${uniqueDataspacesCount * (uniqueGraphCount * 0.2)}</vdspfl:prevelance> 
-
             <vdspfl:performance>${uniqueSourceIdCount}</vdspfl:performance>
-            <vdsidx:timestamp>${(new Date()).getTime()}</vdsidx:timestamp> <!-- when was this profile generated -->
+            <vdsidx:timestamp>${(new Date()).getTime()}</vdsidx:timestamp>
         </vo:Profile>`;
 }
 
@@ -183,13 +191,14 @@ function renderRdf(records) {
          ${putRecords(data.records)}
          ${putDescriptionUris(data.records)}
          ${putDescriptionLabels(data.records, 'dataspace_uri', 'dataspaceLabel')}
+         ${putDescriptionQidSidTemplate(data.records)}
          ${putProfiles(data.records, 'dataspace_uri')}
          ${putProfileLongHandler(data.records)}
     </rdf:RDF>`;
 }
 
-function writeRdfFile(data) {
-    fs.writeFileSync(path, renderRdf(data), (err) => {
+function writeRdfFile(fileName, data) {
+    fs.writeFileSync(`./rdf/${fileName}.rdf`, renderRdf(data), (err) => {
         if (err) throw err;
     });
 }

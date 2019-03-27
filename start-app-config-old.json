@@ -8,15 +8,6 @@
       "ignore_watch" : ["[\\/\\\\]\\./", "rdf"],
       "autorestart": true,
       "watch": true
-    },
-    {
-      "name": "getDataFromDb",
-      "script": "getDataFromDb.js",
-      "instances": 1,
-      "exec_mode": "fork",
-      "cron_restart": "* */1 * * *",
-      "autorestart": false,
-      "watch": false
     }
   ]
 }
